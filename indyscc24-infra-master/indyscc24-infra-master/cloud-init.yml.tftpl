@@ -1,0 +1,15 @@
+#cloud-config
+runcmd:
+  - |-
+    . /opt/ansible-venv/bin/activate
+    pip3 install --upgrade pip
+    pip3 install ansible
+    ansible-galaxy collection install community.general
+    ansible-galaxy collection install ansible.posix
+    ansible-pull \
+      --url "https://github.com/zacharygraber/indyscc24-infra.git" \
+      --checkout "master" \
+      --directory /opt/instance-config-mgt \
+      -i /opt/instance-config-mgt/ansible/hosts \
+      -e ceph_access_key="${ceph_access_key}" \
+      /opt/instance-config-mgt/ansible/playbook.yml

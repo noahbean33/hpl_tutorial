@@ -1,0 +1,95 @@
+---
+- name: IndySCC hosts configured
+  hosts: all
+
+  tasks:
+  - name: JS2 software repo mount removed
+    ansible.posix.mount:
+      src: '149.165.158.38:6789,149.165.158.22:6789,149.165.158.54:6789,149.165.158.70:6789,149.165.158.86:6789:/volumes/_nogroup/b7112570-f7cb-4bd2-8c0e-39b08609b9fd/01aa9d72-69bf-4250-9245-2eaddcdb251d'
+      path: /software
+      opts: 'name=js2softwarero,nofail,noatime,_netdev,x-systemd.automount,x-systemd.device-timeout=1s,x-systemd.idle-timeout=600s,ro'
+      fstype: ceph
+      state: absent
+
+  - name: TigerVNC removed
+    ansible.builtin.dnf:
+      name: tigervnc-server
+      state: absent
+
+  - name: Desktop environment removed
+    ansible.builtin.package:
+      name: '@GNOME'
+      state: absent
+
+  - name: GPU presence detected
+    ansible.builtin.shell: set -o pipefail && lspci | grep -i nvidia
+    register: gpu_return
+    failed_when: gpu_return.rc == 2
+
+  - name: GPU driver uninstalled if no GPU is present
+    ansible.builtin.dnf:
+      name: nvidia-linux-grid
+      state: absent
+    when: gpu_return.rc != 0
+
+  - name: Lmod default modules config deleted
+    ansible.builtin.file:
+      path: /etc/profile.d/z99-lmod-default-modules.sh
+      state: absent
+
+  - name: Lmod modulepath configs deleted
+    ansible.builtin.file:
+      path: "/etc/profile.d/{{ item }}"
+      state: absent
+    with_items:
+      - 00-modulepath.csh
+      - 00-modulepath.sh
+
+  - name: Lmod uninstalled
+    ansible.builtin.dnf:
+      name: Lmod
+      state: absent
+
+  - name: 'Docker packages removed'
+    ansible.builtin.dnf:
+      name:
+        - docker-ce
+        - docker-ce-cli
+        - containerd.io
+        - docker-compose-plugin
+        - nvidia-docker2
+      state: absent
+
+  - name: README.txt downloaded to /home/rocky, /root, and /etc/skel
+    ansible.builtin.get_url:
+      url: https://gist.githubusercontent.com/zacharygraber/935298aaf92b8d220e870075413b2be6/raw/e31ca121c2e89d330a19da4dac463b4fb9b6d56b/README.txt
+      dest: "{{ item }}"
+      mode: '0664'
+    with_items:
+      - /home/rocky/README.txt
+      - /root/README.txt
+      - /etc/skel/README.txt
+
+  - name: Mount directory /indyscc-inputs created
+    ansible.builtin.file:
+      path: /indyscc-inputs
+      state: directory
+      mode: '0775'
+
+  - name: Ceph keyring file templated
+    ansible.builtin.template:
+      src: ceph.client.indyscc24-inputs-ro.keyring.j2
+      dest: /etc/ceph/ceph.client.indyscc24-inputs-ro.keyring
+      mode: '0644'
+
+  - name: Manila share /indyscc-inputs mount added to fstab
+    ansible.posix.mount:
+      src: '149.165.158.38:6789,149.165.158.22:6789,149.165.158.54:6789,149.165.158.70:6789,149.165.158.86:6789:/volumes/_nogroup/af5fa8cf-f6a2-4fae-b071-498c838aa3a3/10e8ba9c-28f0-42cb-8cdc-2c1ceef48a66'
+      path: '/indyscc-inputs'
+      opts: 'name=indyscc24-inputs-ro,nofail,noatime,_netdev,x-systemd.automount,x-systemd.device-timeout=1s,x-systemd.idle-timeout=600s,ro'
+      state: mounted
+      fstype: ceph
+
+  - name: 'Force a systemd configs reload just to be sure the automount works correctly'
+    ansible.builtin.systemd:
+      daemon_reload: yes

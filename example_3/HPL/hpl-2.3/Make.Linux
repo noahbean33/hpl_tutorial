@@ -1,0 +1,45 @@
+# ---------------- HPL Make.Linux (Ubuntu + OpenMPI + OpenBLAS) ----------------
+SHELL        = /bin/sh
+CD           = cd
+CP           = cp
+LN_S         = ln -s
+MKDIR        = mkdir
+RM           = /bin/rm -f
+TOUCH        = touch
+
+ARCH         = Linux
+TOPdir       = $(HOME)/HPL/hpl-2.3
+INCdir       = $(TOPdir)/include
+BINdir       = $(TOPdir)/bin/$(ARCH)
+LIBdir       = $(TOPdir)/lib/$(ARCH)
+HPLlib       = $(LIBdir)/libhpl.a
+
+# ---------------- MPI ----------------
+MPdir        = /usr/lib/x86_64-linux-gnu/openmpi
+MPinc        = -I$(MPdir)/include
+MPlib        = -L$(MPdir)/lib -lmpi
+
+# ---------------- BLAS ----------------
+LAdir        = /usr/lib/x86_64-linux-gnu
+LAlib        = -L$(LAdir) -lopenblas
+LAinc        =
+
+# ---------------- Fortran Interface ----------------
+F2CDEFS      = -DAdd_ -DF77_INTEGER=int -DStringSunStyle
+
+# ---------------- HPL Includes and Libs ----------------
+HPL_INCLUDES = -I$(INCdir) $(LAinc) $(MPinc)
+HPL_LIBS     = $(HPLlib) $(LAlib) $(MPlib)
+HPL_OPTS     =
+HPL_DEFS     = $(F2CDEFS) $(HPL_OPTS) $(HPL_INCLUDES)
+
+# ---------------- Compilers ----------------
+CC           = mpicc
+CCNOOPT      = $(HPL_DEFS)
+CCFLAGS      = $(HPL_DEFS) -O3 -march=native -mtune=native
+LINKER       = mpicc
+LINKFLAGS    = $(CCFLAGS)
+ARCHIVER     = ar
+ARFLAGS      = r
+RANLIB       = ranlib
+

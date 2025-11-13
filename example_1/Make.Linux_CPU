@@ -1,0 +1,12 @@
+ARCH         = Linux_CPU
+TOPdir       = /opt/hpl-2.3
+MPdir        = /usr
+MPinc        = -I$(MPdir)/include
+MPlib        = -L$(MPdir)/lib -lmpi
+LAdir        = /usr/lib/x86_64-linux-gnu
+LAinc        =
+LAlib        = -L$(LAdir) -lopenblas
+CC           = mpicc
+CCFLAGS      = -O3 -funroll-loops
+LINKER       = mpicc
+LINKFLAGS    = -O3

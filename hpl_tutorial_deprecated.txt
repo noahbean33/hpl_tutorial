@@ -1,0 +1,226 @@
+Mathieu GAILLARD
+About me
+Articles
+Publications
+Contact
+How to compile HPL LINPACK on Ubuntu 22.04
+27-08-2022
+
+The High-Performance Linpack benchmark is a tool to evaluate the floating point performance of a computer. It is used to benchmark the fastest supercomputers in the world (see the Top500 list). The way it works is that it solves a giant system of linear equations Ax=b by parallelizing computations on many compute nodes.
+
+In this article, we will look at how to compile and run the High-Performance Linpack benchmark on Ubuntu 22.04.
+
+1) How to build HPL on Ubuntu 22.04?
+Install dependencies
+On Ubuntu 22.04 the following packages are needed to be able to compile and run HPL.
+
+$ sudo apt install build-essential hwloc libhwloc-dev libevent-dev gfortran
+Compile OpenBLAS
+OpenBLAS is a standard BLAS (Basic Linear Algebra Subprograms) library that is used to perform linear algebra operations. There are many different implementations of the BLAS specification. I chose OpenBLAS because it runs on all platforms (Intel and AMD), and gives good results without needing expessive fine tuning at compile time. To get the absolute best performances, the BLAS library should be specific to the machine on which it runs. Other options for a linear algebra library include:
+
+Intel oneMKL on a system with an Intel CPU
+AMD BLIS on a system with an AMD CPUs
+The following commands will compile and install OpenBLAS in your user directory under ~/opt/OpenBLAS/.
+
+$ git clone https://github.com/xianyi/OpenBLAS.git
+$ cd OpenBLAS
+$ git checkout v0.3.21
+$ make
+$ make PREFIX=$HOME/opt/OpenBLAS install
+Compile OpenMPI
+The MPI library is used to communicate between processes, either on the same machine, or across machines of the same compute cluster. The following commands will compile and install OpenMPI in your user directory under ~/opt/OpenMPI/.
+
+$ wget https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.4.tar.gz
+$ tar xf openmpi-4.1.4.tar.gz
+$ cd openmpi-4.1.4
+$ CFLAGS="-Ofast -march=native" ./configure --prefix=$HOME/opt/OpenMPI
+$ make -j 16
+$ make install
+To make OpenMPI available to the system, some environment variables need to be updated. Note that, these commands work only for the current bash session and need to be reentered if the session is restarted.
+
+export MPI_HOME=$HOME/opt/OpenMPI
+export PATH=$PATH:$MPI_HOME/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$MPI_HOME/lib
+Compile HPL
+Note that for some reason, the benchmark needs to be compiled in the user directory ~/hpl, hence the command mv hpl-2.3 ~/hpl.
+
+$ wget https://netlib.org/benchmark/hpl/hpl-2.3.tar.gz
+$ gunzip hpl-2.3.tar.gz
+$ tar xvf hpl-2.3.tar
+$ rm hpl-2.3.tar
+$ mv hpl-2.3 ~/hpl
+We need to configure HPL for the current system. We copy a generic Makefile and customize it for our system.
+
+$ cd hpl/setup
+$ sh make_generic
+$ cp Make.UNKNOWN ../Make.linux
+$ cd ../
+# Specify the paths to libraries
+$ nano Make.linux
+In Makefile Make.linux, the following lines need to be modified to tell the compiler where our libraries are located.
+
+The name of the current architecture (same as in the filename: Make.linux)
+
+ARCH         = linux
+The location of the OpenMPI library:
+
+MPdir        = $(HOME)/opt/OpenMPI
+MPinc        = -I$(MPdir)/include
+MPlib        = $(MPdir)/lib/libmpi.so
+The location of the OpenBLAS library:
+
+LAdir        = $(HOME)/opt/OpenBLAS
+LAinc        =
+LAlib        = $(LAdir)/lib/libopenblas.a
+Now to compile, we just need to run the following command:
+
+$ make arch=linux
+The resulting binary will be located at: bin/linux/xhpl.
+
+How to run HPL?
+Configuration
+First, we need to move to the directory containing the executable of the benchmark.
+
+# Move the executable directory
+$ cd bin/linux
+# Edit the configuration file
+$ nano HPL.dat
+Second, we need to edit the HPL.dat configuration file, which contains some parameters of the benchmark. These parameters influence the result of the benchmark and finding the values that give the best results can take a lot of time. Some important parameters to consider are:
+
+N that is the size of the problem to solve, usually it should take a large part of the RAM on the compute node
+NB that is the block size of the algorithm, usually it goes from 96 to 256 in steps of 8,
+P and Q defines the number of MPI processes to solve the linear system, usually P x Q is equal to the number of nodes in the cluster.
+The following webpage gives explanation about all parameters in the HPL.dat file: HPL Official Tuning Doc. It is a very useful resource to understand what parameters change, and what values may give the best results.
+
+Here is an example HPL.dat file for a computer with 16GB of RAM and a single CPU:
+
+HPLinpack benchmark input file
+Innovative Computing Laboratory, University of Tennessee
+HPL.out      output file name (if any) 
+6            device out (6=stdout,7=stderr,file)
+1            # of problems sizes (N)
+29232        Ns
+1            # of NBs
+232          NBs
+0            PMAP process mapping (0=Row-,1=Column-major)
+1            # of process grids (P x Q)
+1            Ps
+1            Qs
+16.0         threshold
+1            # of panel fact
+2            PFACTs (0=left, 1=Crout, 2=Right)
+1            # of recursive stopping criterium
+4            NBMINs (>= 1)
+1            # of panels in recursion
+2            NDIVs
+1            # of recursive panel fact.
+1            RFACTs (0=left, 1=Crout, 2=Right)
+1            # of broadcast
+1            BCASTs (0=1rg,1=1rM,2=2rg,3=2rM,4=Lng,5=LnM)
+1            # of lookahead depth
+1            DEPTHs (>=0)
+2            SWAP (0=bin-exch,1=long,2=mix)
+64           swapping threshold
+0            L1 in (0=transposed,1=no-transposed) form
+0            U  in (0=transposed,1=no-transposed) form
+1            Equilibration (0=no,1=yes)
+8            memory alignment in double (> 0)
+##### This line (no. 32) is ignored (it serves as a separator). ######
+0                               Number of additional problem sizes for PTRANS
+1200 10000 30000                values of N
+0                               number of additional blocking sizes for PTRANS
+40 9 8 13 13 20 16 32 64        values of NB
+Finally, something worth checking out is this website: How do I tune my HPL.dat file?. It generates a tuned version of the HPL.dat file based on the characteristics of your compute cluster: number of nodes, cores per node, memory per node, and block size.
+
+Running on a single CPU system
+On a single CPU system, in the HPL.dat file, set the number of problems to: P=1 and Q=1.
+
+# No need to use mpirun or specify the number of cores, OpenBLAS is multi-threaded by default
+$ ./xhpl
+Note that if the system has a single CPU socket but the CPU includes multiple NUMA nodes (like an AMD Ryzen Threadripper 2990WX), to get the best results, the computation should be distributed on the NUMA nodes (see the next section).
+
+Running on a dual CPU system
+On a dual CPU system, in the HPL.dat file, set the number of problems to the number of NUMA nodes: P=1 and Q=2.
+
+# Sets the thread affinity for OpenMP, threads will not be moved between cores
+$ export OMP_PROC_BIND=TRUE
+# Tells OpenMP to place threads on physical cores, not hyper-threaded cores
+$ export OMP_PLACES=cores
+# Here replace 12 by the number of physical cores per CPU (without counting hyper-threaded cores)
+$ export OMP_NUM_THREADS=12
+# Here replace 2 by the number of CPUs in the machine
+$ mpirun -n 2 --map-by l3cache --mca btl self,vader xhpl
+Interpreting results
+After running the benchmark, the output should look like the following. Towards the middle of the output, in the table, the number 2.2444e+02 means that the result of the benchmark is 224.4 Gflops. For reference, this was run in a VM on a laptop equipped with an Intel Core i7-10875H.
+
+===============================================================================
+HPLinpack 2.3  --  High-Performance Linpack benchmark  --   December 2, 2018
+Written by A. Petitet and R. Clint Whaley,  Innovative Computing Laboratory, UTK
+Modified by Piotr Luszczek, Innovative Computing Laboratory, UTK
+Modified by Julien Langou, University of Colorado Denver
+================================================================================
+
+An explanation of the input/output parameters follows:
+T/V    : Wall time / encoded variant.
+N      : The order of the coefficient matrix A.
+NB     : The partitioning blocking factor.
+P      : The number of process rows.
+Q      : The number of process columns.
+Time   : Time in seconds to solve the linear system.
+Gflops : Rate of execution for solving the linear system.
+
+The following parameter values will be used:
+
+N      :   29232 
+NB     :     232 
+PMAP   : Row-major process mapping
+P      :       1 
+Q      :       1 
+PFACT  :   Right 
+NBMIN  :       4 
+NDIV   :       2 
+RFACT  :   Crout 
+BCAST  :  1ringM 
+DEPTH  :       1 
+SWAP   : Mix (threshold = 64)
+L1     : transposed form
+U      : transposed form
+EQUIL  : yes
+ALIGN  : 8 double precision words
+
+--------------------------------------------------------------------------------
+
+- The matrix A is randomly generated for each test.
+- The following scaled residual check will be computed:
+      ||Ax-b||_oo / ( eps * ( || x ||_oo * || A ||_oo + || b ||_oo ) * N )
+- The relative machine precision (eps) is taken to be               1.110223e-16
+- Computational tests pass if scaled residuals are less than                16.0
+
+================================================================================
+T/V                N    NB     P     Q               Time                 Gflops
+--------------------------------------------------------------------------------
+WR11C2R4       29232   232     1     1              74.20             2.2444e+02
+HPL_pdgesv() start time Sat Aug 27 11:36:48 2022
+
+HPL_pdgesv() end time   Sat Aug 27 11:38:02 2022
+
+--------------------------------------------------------------------------------
+||Ax-b||_oo/(eps*(||A||_oo*||x||_oo+||b||_oo)*N)=   2.06977736e-03 ...... PASSED
+================================================================================
+
+Finished      1 tests with the following results:
+              1 tests completed and passed residual checks,
+              0 tests completed and failed residual checks,
+              0 tests skipped because of illegal input values.
+--------------------------------------------------------------------------------
+
+End of Tests.
+================================================================================
+References
+GitHub repository of OpenBLAS
+Official website of OpenMPI
+Official website of the HPL Benchmark
+Official tuning documentation for the HPL Benchmark
+How do I tune my HPL.dat file?
+Article on HPL on Puget Systems website
+© 2024 Mathieu GAILLARD. RSS GitHub ORCID LinkedIn

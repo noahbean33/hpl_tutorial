@@ -1,0 +1,52 @@
+# 为Ubuntu系统配置的HPL Makefile，使用OpenBLAS
+#
+SHELL        = /bin/sh
+CD           = cd
+CP           = cp
+LN_S         = ln -s
+MKDIR        = mkdir -p
+RM           = rm -f
+TOUCH        = touch
+#
+ARCH         = Ubuntu_OpenBLAS
+#
+TOPdir       = /home/exouser/HPL/hpl-2.3
+INCdir       = $(TOPdir)/include
+BINdir       = $(TOPdir)/bin/$(ARCH)
+LIBdir       = $(TOPdir)/lib/$(ARCH)
+#
+HPLlib       = $(LIBdir)/libhpl.a
+#
+# MPI配置
+MPdir        = /usr
+MPinc        = -I$(MPdir)/include
+MPlib        = -L$(MPdir)/lib -lmpi
+#
+# OpenBLAS配置
+LAdir        = /usr/lib/x86_64-linux-gnu
+LAinc        = 
+LAlib        = -L$(LAdir) -lopenblas
+#
+# Fortran接口配置
+F2CDEFS      = -DAdd_
+#
+# HPL包含路径和库
+HPL_INCLUDES = -I$(INCdir) $(LAinc) $(MPinc)
+HPL_LIBS     = $(HPLlib) $(LAlib) $(MPlib)
+#
+# 编译选项
+HPL_OPTS     = 
+HPL_DEFS     = $(F2CDEFS) $(HPL_OPTS) $(HPL_INCLUDES)
+#
+# 编译器和优化选项
+CC           = mpicc
+CCNOOPT      = $(HPL_DEFS)
+CCFLAGS      = $(HPL_DEFS) -O3 -march=native -mtune=native
+#
+LINKER       = mpicc
+LINKFLAGS    = $(CCFLAGS)
+#
+ARCHIVER     = ar
+ARFLAGS      = r
+RANLIB       = ranlib
+#
