@@ -1,7 +1,0 @@
-/mpich-install
-/OpenBLAS
-.DS_Store
-temp_HPL.dat
-**/*.3
-**/*.o
-**/ZEN3
